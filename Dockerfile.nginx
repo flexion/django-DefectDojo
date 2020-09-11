@@ -68,7 +68,6 @@ FROM nginx:1.19.1-alpine@sha256:966f134cf5ddeb12a56ede0f40fff754c0c0a74918229512
 COPY --from=collectstatic /app/static/ /usr/share/nginx/html/static/
 COPY wsgi_params nginx/nginx.conf nginx/nginx_TLS.conf /etc/nginx/
 COPY docker/entrypoint-nginx.sh /
-COPY docker/entrypoint-nginx-awsfargate.sh /
 RUN \
   apk add --no-cache openssl && \
   chmod -R g=u /var/cache/nginx && \
