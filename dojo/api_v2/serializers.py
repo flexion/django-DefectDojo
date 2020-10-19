@@ -4,11 +4,7 @@ from dojo.models import Product, Engagement, Test, Finding, \
     JIRA_Issue, Tool_Product_Settings, Tool_Configuration, Tool_Type, \
     Product_Type, JIRA_Conf, Endpoint, BurpRawRequestResponse, JIRA_PKey, \
     Notes, DojoMeta, FindingImage, Note_Type, App_Analysis, Endpoint_Status, \
-<<<<<<< HEAD
-    Sonarqube_Issue, Sonarqube_Issue_Transition, Sonarqube_Product
-=======
     Sonarqube_Issue, Sonarqube_Issue_Transition, Sonarqube_Product, Regulation
->>>>>>> upstream/master
 
 from dojo.forms import ImportScanForm, SEVERITY_CHOICES
 from dojo.tools import requires_file

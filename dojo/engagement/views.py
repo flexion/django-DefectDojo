@@ -23,12 +23,8 @@ from dojo.filters import EngagementFilter
 from dojo.forms import CheckForm, \
     UploadThreatForm, UploadRiskForm, NoteForm, \
     EngForm, TestForm, ReplaceRiskAcceptanceForm, AddFindingsRiskAcceptanceForm, DeleteEngagementForm, ImportScanForm, \
-<<<<<<< HEAD
-    CredMappingForm, JIRAEngagementForm, JIRAImportScanForm
-=======
     CredMappingForm, JIRAEngagementForm, JIRAImportScanForm, TypedNoteForm
 
->>>>>>> upstream/master
 from dojo.models import Finding, Product, Engagement, Test, \
     Check_List, Test_Type, Notes, \
     Risk_Acceptance, Development_Environment, BurpRawRequestResponse, Endpoint, \
@@ -197,11 +193,7 @@ def edit_engagement(request, eid):
             if 'jiraform-push_to_jira' in request.POST:
                 logger.debug('push_to_jira true')
                 if JIRA_Issue.objects.filter(engagement=eng).exists():
-<<<<<<< HEAD
-                    if request.user.usercontactinfo.block_execution:
-=======
                     if Dojo_User.wants_block_execution(request.user):
->>>>>>> upstream/master
                         update_epic(
                             eng, jform.cleaned_data.get('push_to_jira'))
                     else:
@@ -209,11 +201,7 @@ def edit_engagement(request, eid):
                             eng, jform.cleaned_data.get('push_to_jira'))
 
                 else:
-<<<<<<< HEAD
-                    if request.user.usercontactinfo.block_execution:
-=======
                     if Dojo_User.wants_block_execution(request.user):
->>>>>>> upstream/master
                         add_epic(eng, jform.cleaned_data.get('push_to_jira'))
                     else:
                         add_epic_task.delay(eng, jform.cleaned_data.get('push_to_jira'))
@@ -563,11 +551,8 @@ def import_scan_results(request, eid=None, pid=None):
         if get_system_setting('enable_jira') and product.jira_pkey_set.first() is not None:
             push_all_jira_issues = product.jira_pkey_set.first().push_all_issues
             jform = JIRAImportScanForm(push_all=push_all_jira_issues, prefix='jiraform')
-<<<<<<< HEAD
-=======
     elif not user.is_staff:
         raise PermissionDenied
->>>>>>> upstream/master
 
     if request.method == "POST":
         form = ImportScanForm(request.POST, request.FILES)
