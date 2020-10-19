@@ -1,7 +1,11 @@
 
 # code: language=Dockerfile
 
+<<<<<<< HEAD
 FROM python:3.6.11-slim-buster@sha256:d9cc8556414ebbee41a45272eeb68442d7f6ae2bea679975c9ec67867075d353 as build
+=======
+FROM python:3.6.12-slim-buster@sha256:e5259113df5a7c4dae16ad37c2ca53b1cf722e051cfd5f624e7b76aa72389e0c as build
+>>>>>>> upstream/master
 WORKDIR /app
 RUN \
   apt-get -y update && \
