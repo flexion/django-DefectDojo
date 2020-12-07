@@ -14,6 +14,7 @@ from django.http import Http404, HttpResponseRedirect, HttpResponseForbidden, Js
 from django.http import HttpResponse
 from django.shortcuts import render, get_object_or_404
 from django.utils import timezone
+from django.db.models import Q
 
 from dojo.celery import app
 from dojo.endpoint.views import get_endpoint_ids
@@ -27,6 +28,7 @@ from dojo.reports.widgets import CoverPage, PageBreak, TableOfContents, WYSIWYGC
 from dojo.tasks import async_pdf_report, async_custom_pdf_report
 from dojo.utils import get_page_items, add_breadcrumb, get_system_setting, get_period_counts_legacy, Product_Tab, \
     get_words_for_field
+from dojo.user.helper import user_must_be_authorized, check_auth_users_list
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +53,7 @@ def report_url_resolver(request):
 def report_builder(request):
     add_breadcrumb(title="Report Builder", top_level=True, request=request)
     findings = Finding.objects.all()
-    findings = ReportAuthedFindingFilter(request.GET, queryset=findings, user=request.user)
+    findings = ReportAuthedFindingFilter(request.GET, queryset=findings)
     endpoints = Endpoint.objects.filter(finding__active=True,
                                         finding__verified=True,
                                         finding__false_p=False,
@@ -62,7 +64,7 @@ def report_builder(request):
 
     endpoints = Endpoint.objects.filter(id__in=ids)
 
-    endpoints = EndpointFilter(request.GET, queryset=endpoints)
+    endpoints = EndpointFilter(request.GET, queryset=endpoints, user=request.user)
 
     in_use_widgets = [ReportOptions(request=request)]
     available_widgets = [CoverPage(request=request),
@@ -129,6 +131,15 @@ def custom_report(request):
                            "finding_notes": finding_notes,
                            "finding_images": finding_images,
                            "user_id": request.user.id})
+        elif report_format == 'HTML':
+            widgets = list(selected_widgets.values())
+            return render(request,
+                          'dojo/custom_html_report.html',
+                          {"widgets": widgets,
+                           "host": host,
+                           "finding_notes": finding_notes,
+                           "finding_images": finding_images,
+                           "user_id": request.user.id})
         else:
             return HttpResponseForbidden()
     else:
@@ -138,7 +149,7 @@ def custom_report(request):
 def report_findings(request):
     findings = Finding.objects.filter()
 
-    findings = ReportAuthedFindingFilter(request.GET, queryset=findings, user=request.user)
+    findings = ReportAuthedFindingFilter(request.GET, queryset=findings)
 
     title_words = get_words_for_field(findings.qs, 'title')
     component_words = get_words_for_field(findings.qs, 'component_name')
@@ -173,7 +184,7 @@ def report_endpoints(request):
     ids = get_endpoint_ids(endpoints)
 
     endpoints = Endpoint.objects.filter(id__in=ids)
-    endpoints = EndpointFilter(request.GET, queryset=endpoints)
+    endpoints = EndpointFilter(request.GET, queryset=endpoints, user=request.user)
 
     paged_endpoints = get_page_items(request, endpoints.qs, 25)
 
@@ -333,12 +344,9 @@ def product_type_report(request, ptid):
     return generate_report(request, product_type)
 
 
+@user_must_be_authorized(Product, 'view', 'pid')
 def product_report(request, pid):
     product = get_object_or_404(Product, id=pid)
-    if request.user.is_staff or request.user in product.authorized_users.all():
-        pass  # user is authorized for this product
-    else:
-        raise PermissionDenied
     return generate_report(request, product)
 
 
@@ -346,7 +354,10 @@ def product_findings_report(request):
     if request.user.is_staff:
         findings = Finding.objects.filter().distinct()
     else:
-        findings = Finding.objects.filter(test__engagement__product__authorized_users__in=[request.user]).distinct()
+        findings = Finding.objects.filter(
+            Q(test__engagement__product__authorized_users__in=[request.user]) |
+            Q(test__engagement__product__prod_type__authorized_users__in=[request.user])
+        )
 
     return generate_report(request, findings)
 
@@ -363,16 +374,13 @@ def test_report(request, tid):
     return generate_report(request, test)
 
 
+@user_must_be_authorized(Endpoint, 'view', 'eid')
 def endpoint_report(request, eid):
     endpoint = get_object_or_404(Endpoint, id=eid)
-    if request.user.is_staff or request.user in endpoint.product.authorized_users.all():
-        pass  # user is authorized for this product
-    else:
-        raise PermissionDenied
-
     return generate_report(request, endpoint)
 
 
+@user_must_be_authorized(Product, 'view', 'pid')
 def product_endpoint_report(request, pid):
     user = Dojo_User.objects.get(id=request.user.id)
     product = get_object_or_404(Product, id=pid)
@@ -387,12 +395,6 @@ def product_endpoint_report(request, pid):
     ids = get_endpoint_ids(endpoints)
 
     endpoints = Endpoint.objects.filter(id__in=ids)
-
-    if request.user.is_staff or request.user in product.authorized_users.all():
-        pass  # user is authorized for this product
-    else:
-        raise PermissionDenied
-
     endpoints = EndpointReportFilter(request.GET, queryset=endpoints)
 
     paged_endpoints = get_page_items(request, endpoints.qs, 25)
@@ -566,12 +568,12 @@ def generate_report(request, obj):
         user.get_full_name(), (timezone.now().strftime("%m/%d/%Y %I:%M%p %Z")))
 
     if type(obj).__name__ == "Product":
-        if request.user.is_staff or request.user in obj.authorized_users.all():
+        if request.user.is_staff or check_auth_users_list(request.user, obj):
             pass  # user is authorized for this product
         else:
             raise PermissionDenied
     elif type(obj).__name__ == "Endpoint":
-        if request.user.is_staff or request.user in obj.product.authorized_users.all():
+        if request.user.is_staff or check_auth_users_list(request.user, obj):
             pass  # user is authorized for this product
         else:
             raise PermissionDenied
@@ -640,7 +642,7 @@ def generate_report(request, obj):
                    'include_table_of_contents': include_table_of_contents,
                    'user': user,
                    'team_name': settings.TEAM_NAME,
-                   'title': 'Generate Report',
+                   'title': report_title,
                    'host': report_url_resolver(request),
                    'user_id': request.user.id}
 
@@ -671,7 +673,7 @@ def generate_report(request, obj):
                    'include_table_of_contents': include_table_of_contents,
                    'user': user,
                    'team_name': settings.TEAM_NAME,
-                   'title': 'Generate Report',
+                   'title': report_title,
                    'endpoints': endpoints,
                    'host': report_url_resolver(request),
                    'user_id': request.user.id}
@@ -703,7 +705,7 @@ def generate_report(request, obj):
                    'include_table_of_contents': include_table_of_contents,
                    'user': user,
                    'team_name': settings.TEAM_NAME,
-                   'title': 'Generate Report',
+                   'title': report_title,
                    'host': report_url_resolver(request),
                    'user_id': request.user.id,
                    'endpoints': endpoints}
@@ -729,7 +731,7 @@ def generate_report(request, obj):
                    'include_table_of_contents': include_table_of_contents,
                    'user': user,
                    'team_name': settings.TEAM_NAME,
-                   'title': 'Generate Report',
+                   'title': report_title,
                    'host': report_url_resolver(request),
                    'user_id': request.user.id}
 
@@ -760,7 +762,7 @@ def generate_report(request, obj):
                    'include_table_of_contents': include_table_of_contents,
                    'user': user,
                    'team_name': get_system_setting('team_name'),
-                   'title': 'Generate Report',
+                   'title': report_title,
                    'host': report_url_resolver(request),
                    'user_id': request.user.id}
     elif type(obj).__name__ == "QuerySet":
@@ -784,7 +786,7 @@ def generate_report(request, obj):
                    'include_table_of_contents': include_table_of_contents,
                    'user': user,
                    'team_name': settings.TEAM_NAME,
-                   'title': 'Generate Report',
+                   'title': report_title,
                    'host': report_url_resolver(request),
                    'user_id': request.user.id}
     else:
@@ -809,9 +811,10 @@ def generate_report(request, obj):
                            'include_table_of_contents': include_table_of_contents,
                            'user': user,
                            'team_name': settings.TEAM_NAME,
-                           'title': 'Generate Report',
+                           'title': report_title,
                            'user_id': request.user.id,
                            'host': report_url_resolver(request),
+                           'context': context,
                            })
 
         elif report_format == 'PDF':
@@ -862,9 +865,10 @@ def generate_report(request, obj):
                            'include_table_of_contents': include_table_of_contents,
                            'user': user,
                            'team_name': settings.TEAM_NAME,
-                           'title': 'Generate Report',
+                           'title': report_title,
                            'user_id': request.user.id,
                            'host': "",
+                           'context': context,
                            })
 
         else:
@@ -893,4 +897,5 @@ def generate_report(request, obj):
                    'findings': findings,
                    'paged_findings': paged_findings,
                    'report_form': report_form,
+                   'context': context,
                    })
