@@ -1,4 +1,6 @@
-# #  metrics
+"""
+Metrics views
+"""
 import collections
 import logging
 import operator
