@@ -33,7 +33,10 @@ jobs:
           DEFAULT_BRANCH: master
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           LINTER_RULES_PATH: '.'
+          # Only lint changed files:
           VALIDATE_ALL_CODEBASE: false
           VALIDATE_PYTHON: true
           VALIDATE_PYTHON_PYLINT: true
+          # Skip HTML, to avoid errors on Django template syntax:
+          VALIDATE_HTML: false
           PYTHON_PYLINT_CONFIG_FILE: .pylintrc
