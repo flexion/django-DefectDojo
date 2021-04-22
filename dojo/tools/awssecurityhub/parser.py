@@ -39,29 +39,34 @@ def get_item(finding, test):
     title = finding.get('Title', "")
     severity = finding.get('Severity', {}).get('Label', 'INFORMATIONAL').title()
     description = finding.get('Description', "")
+    resources = finding.get('Resources', "")
+    resource_id = resources[0]['Id'].split(':')[-1]
     mitigation = finding.get('Remediation', {}).get('Recommendation', {}).get('Text', "")
     references = finding.get('Remediation', {}).get('Recommendation', {}).get('Url')
     cve = None
     cwe = None
-    active = False
+    active = True
     verified = False
     false_p = False
     duplicate = False
     out_of_scope = False
     impact = None
+    is_Mitigated = False
 
     if finding.get('Compliance', {}).get('Status', "PASSED"):
+        active = False
+        verified = True
         if finding.get('LastObservedAt', None):
             try:
-                mitigated = datetime.strptime(finding.get('LastObservedAt'), "%Y-%m-%dT%H:%M:%S.%fZ")
+                mitigated = datetime.strptime(finding.get('LastObservedAt'), "%Y-%m-%dT%H:%M:%S.%fZ").date()
             except:
-                mitigated = datetime.strptime(finding.get('LastObservedAt'), "%Y-%m-%dT%H:%M:%fZ")
+                mitigated = datetime.strptime(finding.get('LastObservedAt'), "%Y-%m-%dT%H:%M:%fZ").date()
         else:
             mitigated = datetime.utcnow()
     else:
         mitigated = None
 
-    finding = Finding(title=title,
+    finding = Finding(title=f"({resource_id}) {title}",
                       test=test,
                       severity=severity,
                       description=description,
