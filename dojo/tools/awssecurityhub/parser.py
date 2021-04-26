@@ -36,6 +36,7 @@ class AwsSecurityHubParser(object):
 
 
 def get_item(finding, test):
+    finding_id = finding.get('Id', "").split('/')[-1]
     title = finding.get('Title', "")
     severity = finding.get('Severity', {}).get('Label', 'INFORMATIONAL').title()
     description = finding.get('Description', "")
@@ -45,26 +46,23 @@ def get_item(finding, test):
     references = finding.get('Remediation', {}).get('Recommendation', {}).get('Url')
     cve = None
     cwe = None
-    active = True
-    verified = False
     false_p = False
     duplicate = False
     out_of_scope = False
     impact = None
     is_Mitigated = False
 
-    if finding.get('Compliance', {}).get('Status', "PASSED"):
-        active = False
-        verified = True
+    if finding.get('Workflow', {}).get('Status', "") == "RESOLVED":
+        is_Mitigated = True
         if finding.get('LastObservedAt', None):
             try:
-                mitigated = datetime.strptime(finding.get('LastObservedAt'), "%Y-%m-%dT%H:%M:%S.%fZ").date()
+                mitigation_date = datetime.strptime(finding.get('LastObservedAt'), "%Y-%m-%dT%H:%M:%S.%fZ")
             except:
-                mitigated = datetime.strptime(finding.get('LastObservedAt'), "%Y-%m-%dT%H:%M:%fZ").date()
+                mitigation_date = datetime.strptime(finding.get('LastObservedAt'), "%Y-%m-%dT%H:%M:%fZ")
         else:
-            mitigated = datetime.utcnow()
+            mitigation_date = datetime.utcnow()
     else:
-        mitigated = None
+        mitigation_date = None
 
     finding = Finding(title=f"({resource_id}) {title}",
                       test=test,
@@ -74,12 +72,12 @@ def get_item(finding, test):
                       references=references,
                       cve=cve,
                       cwe=cwe,
-                      active=active,
-                      verified=verified,
+                      active=False,
+                      verified=False,
                       false_p=false_p,
                       duplicate=duplicate,
                       out_of_scope=out_of_scope,
-                      mitigated=mitigated,
-                      impact="No impact provided")
+                      impact="No impact provided",
+                      unique_id_from_tool=finding_id)
 
     return finding
